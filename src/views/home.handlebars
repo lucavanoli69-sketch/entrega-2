@@ -1,0 +1,18 @@
+<h1>Listado de Productos</h1>
+
+{{#if products.length}}
+  <ul>
+    {{#each products}}
+      <li>
+        <strong>{{title}}</strong> |
+        Precio: ${{price}} |
+        Categoría: {{category}} |
+        Stock: {{stock}}
+      </li>
+    {{/each}}
+  </ul>
+{{else}}
+  <p>No hay productos cargados.</p>
+{{/if}}
+
+<p><a href="/realtimeproducts">Ir a Productos en Tiempo Real</a></p>

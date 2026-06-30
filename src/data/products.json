@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1,
+    "title": "Laptop",
+    "description": "Laptop gamer",
+    "code": "LAP001",
+    "price": 1500,
+    "status": true,
+    "stock": 10,
+    "category": "tecnologia",
+    "thumbnails": []
+  },
+  {
+    "id": 2,
+    "title": "celular",
+    "description": "azul",
+    "code": "90",
+    "price": 7,
+    "status": true,
+    "stock": 3,
+    "category": "2",
+    "thumbnails": []
+  }
+]
