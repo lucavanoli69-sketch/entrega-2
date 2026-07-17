@@ -1,78 +1,25 @@
 // ============================================================
 // managers/CartManager.js
-// Gestiona la persistencia de carritos en carts.json
+// Gestiona la persistencia de carritos en MongoDB
 // ============================================================
 
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const FILE_PATH = path.join(__dirname, "../data/carts.json");
+import { CartModel } from "../models/cart.model.js";
 
 class CartManager {
-
-  // ── Utilidades privadas ──────────────────────────────────
-
-  /**
-   * Lee el archivo JSON y devuelve el array de carritos.
-   * Si el archivo no existe, lo crea con [].
-   */
-  async #readFile() {
-    try {
-      const data = await fs.readFile(FILE_PATH, "utf-8");
-      return JSON.parse(data);
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        await this.#writeFile([]);
-        return [];
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Escribe el array en el archivo JSON con formato legible.
-   */
-  async #writeFile(data) {
-    await fs.writeFile(FILE_PATH, JSON.stringify(data, null, 2), "utf-8");
-  }
-
-  /**
-   * Genera el próximo ID disponible.
-   */
-  #generateId(carts) {
-    if (carts.length === 0) return 1;
-    return Math.max(...carts.map((c) => c.id)) + 1;
-  }
-
-  // ── Métodos públicos ─────────────────────────────────────
-
   /**
    * Crea un nuevo carrito vacío.
    */
   async createCart() {
-    const carts = await this.#readFile();
-
-    const newCart = {
-      id: this.#generateId(carts),
-      products: [],
-    };
-
-    carts.push(newCart);
-    await this.#writeFile(carts);
+    const newCart = await CartModel.create({ products: [] });
     return newCart;
   }
 
   /**
-   * Devuelve un carrito por su ID.
+   * Devuelve un carrito por su ID (con productos populados).
    * @throws {Error} Si el carrito no existe
    */
   async getCartById(id) {
-    const carts = await this.#readFile();
-    const cart = carts.find((c) => c.id === id);
+    const cart = await CartModel.findById(id).populate("products.product").lean();
     if (!cart) throw new Error(`Carrito con id ${id} no encontrado`);
     return cart;
   }
@@ -80,33 +27,75 @@ class CartManager {
   /**
    * Agrega un producto al carrito.
    * Si el producto ya existe en el carrito, incrementa su quantity.
-   * @param {number} cid - ID del carrito
-   * @param {number} pid - ID del producto
-   * @throws {Error} Si el carrito no existe
    */
   async addProductToCart(cid, pid) {
-    const carts = await this.#readFile();
-    const cartIndex = carts.findIndex((c) => c.id === cid);
-    if (cartIndex === -1) throw new Error(`Carrito con id ${cid} no encontrado`);
+    const cart = await CartModel.findById(cid);
+    if (!cart) throw new Error(`Carrito con id ${cid} no encontrado`);
 
-    const cart = carts[cartIndex];
-
-    // Buscar si el producto ya existe en el carrito
-    const productIndex = cart.products.findIndex((p) => p.product === pid);
+    const productIndex = cart.products.findIndex((p) => p.product.toString() === pid);
 
     if (productIndex !== -1) {
-      // El producto ya existe → incrementar quantity
       cart.products[productIndex].quantity += 1;
     } else {
-      // El producto no existe → agregarlo con quantity 1
       cart.products.push({ product: pid, quantity: 1 });
     }
 
-    carts[cartIndex] = cart;
-    await this.#writeFile(carts);
+    await cart.save();
+    return cart;
+  }
+
+  /**
+   * Elimina un producto específico del carrito.
+   */
+  async removeProductFromCart(cid, pid) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) throw new Error(`Carrito con id ${cid} no encontrado`);
+
+    cart.products = cart.products.filter(p => p.product.toString() !== pid);
+    await cart.save();
+    return cart;
+  }
+
+  /**
+   * Actualiza todos los productos de un carrito.
+   */
+  async updateCartProducts(cid, productsArray) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) throw new Error(`Carrito con id ${cid} no encontrado`);
+
+    cart.products = productsArray;
+    await cart.save();
+    return cart;
+  }
+
+  /**
+   * Actualiza únicamente la cantidad de un producto en el carrito.
+   */
+  async updateProductQuantity(cid, pid, quantity) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) throw new Error(`Carrito con id ${cid} no encontrado`);
+
+    const productIndex = cart.products.findIndex(p => p.product.toString() === pid);
+    if (productIndex !== -1) {
+      cart.products[productIndex].quantity = quantity;
+      await cart.save();
+    } else {
+      throw new Error(`Producto con id ${pid} no encontrado en el carrito`);
+    }
+    return cart;
+  }
+
+  /**
+   * Elimina todos los productos del carrito (lo vacía).
+   */
+  async clearCart(cid) {
+    const cart = await CartModel.findById(cid);
+    if (!cart) throw new Error(`Carrito con id ${cid} no encontrado`);
+
+    cart.products = [];
+    await cart.save();
     return cart;
   }
 }
 
-// Exportar una única instancia (patrón Singleton)
 export default new CartManager();

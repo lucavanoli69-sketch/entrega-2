@@ -1,9 +1,14 @@
 // ============================================================
-// app.js - Servidor principal
+// app.js - Servidor principal.
 // ============================================================
+
+import dotenv from 'dotenv';
+dotenv.config();
 
 import express from "express";
 import { createServer } from "http";
+import connectDB from "./config/db.js";
+
 import { Server } from "socket.io";
 import { engine } from "express-handlebars";
 import path from "path";
@@ -21,6 +26,9 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 const PORT = 8080;
+
+// Conectar a la base de datos
+connectDB();
 
 // ── Handlebars ───────────────────────────────────────────────
 app.engine("handlebars", engine());

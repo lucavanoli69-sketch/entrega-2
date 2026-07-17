@@ -1,0 +1,40 @@
+<h1>Listado de Productos</h1>
+
+<div>
+  {{#each products}}
+    <div style="border: 1px solid #ccc; margin-bottom: 10px; padding: 10px;">
+      <h3>{{this.title}}</h3>
+      <p>Precio: ${{this.price}}</p>
+      <p>Categoría: {{this.category}}</p>
+      <p>Stock: {{this.stock}}</p>
+      <a href="/products/{{this._id}}">Ver Detalles</a>
+    </div>
+  {{/each}}
+</div>
+
+<div style="margin-top: 20px;">
+  {{#if hasPrevPage}}
+    <a href="{{prevLink}}">Anterior</a>
+  {{/if}}
+  
+  <span style="margin: 0 15px;">Página {{page}} de {{totalPages}}</span>
+  
+  {{#if hasNextPage}}
+    <a href="{{nextLink}}">Siguiente</a>
+  {{/if}}
+</div>
+
+<div style="margin-top: 20px;">
+  <button onclick="goToCart()">Ver Mi Carrito</button>
+</div>
+
+<script>
+  function goToCart() {
+    const cartId = localStorage.getItem('cartId');
+    if (!cartId) {
+      alert("No tienes un carrito creado aún. Agrega productos para crear uno.");
+      return;
+    }
+    window.location.href = `/carts/${cartId}`;
+  }
+</script>

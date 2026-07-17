@@ -1,65 +1,39 @@
 // ============================================================
 // managers/ProductManager.js
-// Gestiona la persistencia de productos en products.json
+// Gestiona la persistencia de productos en MongoDB
 // ============================================================
 
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-
-// Obtener __dirname en ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const FILE_PATH = path.join(__dirname, "../data/products.json");
+import { ProductModel } from "../models/product.model.js";
 
 class ProductManager {
-
-  // ── Utilidades privadas ──────────────────────────────────
-
   /**
-   * Lee el archivo JSON y devuelve el array de productos.
-   * Si el archivo no existe, lo crea con [].
+   * Devuelve productos con paginación, filtros y ordenamiento.
+   * @param {Object} options - Opciones de paginación
    */
-  async #readFile() {
-    try {
-      const data = await fs.readFile(FILE_PATH, "utf-8");
-      return JSON.parse(data);
-    } catch (error) {
-      // Si el archivo no existe, inicializarlo
-      if (error.code === "ENOENT") {
-        await this.#writeFile([]);
-        return [];
+  async getProducts({ limit = 10, page = 1, sort, query }) {
+    const filter = {};
+    if (query) {
+      // El query puede ser para filtrar por categoría o status
+      if (query.toLowerCase() === "true" || query.toLowerCase() === "false") {
+        filter.status = query.toLowerCase() === "true";
+      } else {
+        filter.category = query;
       }
-      throw error;
     }
-  }
 
-  /**
-   * Escribe el array en el archivo JSON con formato legible.
-   */
-  async #writeFile(data) {
-    await fs.writeFile(FILE_PATH, JSON.stringify(data, null, 2), "utf-8");
-  }
+    const paginateOptions = {
+      limit: parseInt(limit, 10),
+      page: parseInt(page, 10),
+      lean: true // Para que devuelva objetos planos (mejor para Handlebars)
+    };
 
-  /**
-   * Genera el próximo ID disponible (nunca reutiliza IDs eliminados).
-   */
-  #generateId(products) {
-    if (products.length === 0) return 1;
-    return Math.max(...products.map((p) => p.id)) + 1;
-  }
+    if (sort) {
+      if (sort === "asc") paginateOptions.sort = { price: 1 };
+      else if (sort === "desc") paginateOptions.sort = { price: -1 };
+    }
 
-  // ── Métodos públicos ─────────────────────────────────────
-
-  /**
-   * Devuelve todos los productos.
-   * @param {number} [limit] - Limita la cantidad de resultados
-   */
-  async getProducts(limit) {
-    const products = await this.#readFile();
-    if (limit) return products.slice(0, limit);
-    return products;
+    const result = await ProductModel.paginate(filter, paginateOptions);
+    return result;
   }
 
   /**
@@ -67,8 +41,7 @@ class ProductManager {
    * @throws {Error} Si el producto no existe
    */
   async getProductById(id) {
-    const products = await this.#readFile();
-    const product = products.find((p) => p.id === id);
+    const product = await ProductModel.findById(id).lean();
     if (!product) throw new Error(`Producto con id ${id} no encontrado`);
     return product;
   }
@@ -81,7 +54,6 @@ class ProductManager {
   async addProduct(productData) {
     const { title, description, code, price, stock, category, status, thumbnails } = productData;
 
-    // Validar campos obligatorios (thumbnails es opcional)
     const requiredFields = { title, description, code, price, stock, category };
     const missingFields = Object.entries(requiredFields)
       .filter(([, value]) => value === undefined || value === null || value === "")
@@ -91,14 +63,10 @@ class ProductManager {
       throw new Error(`Campos obligatorios faltantes: ${missingFields.join(", ")}`);
     }
 
-    const products = await this.#readFile();
-
-    // Verificar que el código no esté duplicado
-    const codeExists = products.some((p) => p.code === code);
+    const codeExists = await ProductModel.findOne({ code });
     if (codeExists) throw new Error(`Ya existe un producto con el código "${code}"`);
 
-    const newProduct = {
-      id: this.#generateId(products),
+    const newProduct = await ProductModel.create({
       title,
       description,
       code,
@@ -107,44 +75,34 @@ class ProductManager {
       stock: Number(stock),
       category,
       thumbnails: Array.isArray(thumbnails) ? thumbnails : [],
-    };
+    });
 
-    products.push(newProduct);
-    await this.#writeFile(products);
     return newProduct;
   }
 
   /**
-   * Actualiza los campos de un producto (nunca modifica el id).
-   * @param {number} id - ID del producto
+   * Actualiza los campos de un producto.
+   * @param {string} id - ID del producto
    * @param {Object} updatedFields - Campos a actualizar
    * @throws {Error} Si el producto no existe
    */
   async updateProduct(id, updatedFields) {
-    const products = await this.#readFile();
-    const index = products.findIndex((p) => p.id === id);
-    if (index === -1) throw new Error(`Producto con id ${id} no encontrado`);
-
     // Nunca permitir modificar el id
-    const { id: _ignoredId, ...safeFields } = updatedFields;
+    const { _id, ...safeFields } = updatedFields;
 
-    products[index] = { ...products[index], ...safeFields };
-    await this.#writeFile(products);
-    return products[index];
+    const updated = await ProductModel.findByIdAndUpdate(id, safeFields, { new: true, lean: true });
+    if (!updated) throw new Error(`Producto con id ${id} no encontrado`);
+    return updated;
   }
 
   /**
    * Elimina un producto por su ID.
-   * @param {number} id - ID del producto
+   * @param {string} id - ID del producto
    * @throws {Error} Si el producto no existe
    */
   async deleteProduct(id) {
-    const products = await this.#readFile();
-    const index = products.findIndex((p) => p.id === id);
-    if (index === -1) throw new Error(`Producto con id ${id} no encontrado`);
-
-    const [deleted] = products.splice(index, 1);
-    await this.#writeFile(products);
+    const deleted = await ProductModel.findByIdAndDelete(id).lean();
+    if (!deleted) throw new Error(`Producto con id ${id} no encontrado`);
     return deleted;
   }
 }

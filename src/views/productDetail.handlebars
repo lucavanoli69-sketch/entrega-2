@@ -1,0 +1,45 @@
+<h1>{{product.title}}</h1>
+<p>{{product.description}}</p>
+<p>Precio: ${{product.price}}</p>
+<p>Categoría: {{product.category}}</p>
+<p>Stock: {{product.stock}}</p>
+<p>Código: {{product.code}}</p>
+
+<button onclick="addToCart('{{product._id}}')">Agregar al Carrito</button>
+<br><br>
+<a href="/products">Volver a Productos</a>
+
+<script>
+  async function addToCart(productId) {
+    try {
+      let cartId = localStorage.getItem('cartId');
+      
+      // Si no hay carrito, crear uno nuevo
+      if (!cartId) {
+        const createRes = await fetch('/api/carts', { method: 'POST' });
+        const createData = await createRes.json();
+        if (createData.status === 'success') {
+          cartId = createData.payload._id;
+          localStorage.setItem('cartId', cartId);
+        } else {
+          throw new Error("No se pudo crear el carrito");
+        }
+      }
+
+      // Agregar el producto al carrito
+      const addRes = await fetch(`/api/carts/${cartId}/products/${productId}`, {
+        method: 'POST'
+      });
+      const addData = await addRes.json();
+      
+      if (addData.status === 'success') {
+        alert('Producto agregado al carrito con éxito!');
+      } else {
+        alert('Error al agregar al carrito: ' + addData.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Ocurrió un error al intentar agregar al carrito.');
+    }
+  }
+</script>
